@@ -6,7 +6,7 @@ An example of using the wave function collapse with 2D image.
 import matplotlib.pyplot as plt
 import numpy as np
 
-from wfc import WaveFunctionCollapse
+from wfc.wfc import WaveFunctionCollapse
 
 
 def plot_patterns(patterns, title=''):
@@ -58,7 +58,7 @@ if __name__ == '__main__':
     image = wfc.get_image()
     im = show(image)
     while True:
-        done = wfc.step()
+        done = wfc.step(debug=True)
         if done:
             break
         image = wfc.get_image()

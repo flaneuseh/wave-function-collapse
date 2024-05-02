@@ -1,7 +1,7 @@
 import numpy as np
 
-from cell import Cell
-from pattern import Pattern
+from wfc.cell import Cell
+from wfc.pattern import Pattern
 
 
 class Grid:

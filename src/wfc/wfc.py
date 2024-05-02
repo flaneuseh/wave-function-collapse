@@ -1,8 +1,8 @@
 import time
 
-from grid import Grid
-from pattern import Pattern
-from propagator import Propagator
+from wfc.grid import Grid
+from wfc.pattern import Pattern
+from wfc.propagator import Propagator
 
 """
 Implementation of WaveFunctionCollapse
@@ -20,17 +20,18 @@ class WaveFunctionCollapse:
         self.grid = self._create_grid(grid_size)
         self.propagator = Propagator(self.patterns)
 
-    def run(self):
+    def run(self, debug=False):
         start_time = time.time()
 
         done = False
         while not done:
-            done = self.step()
+            done = self.step(debug)
 
         print("WFC run took %s seconds" % (time.time() - start_time))
 
-    def step(self):
-        self.grid.print_allowed_pattern_count()
+    def step(self, debug=False):
+        if debug:
+            self.grid.print_allowed_pattern_count()
         cell = self.observe()
         if cell is None:
             return True

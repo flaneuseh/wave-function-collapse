@@ -8,7 +8,7 @@ import numpy as np
 from mido import MidiFile, MidiTrack, Message, second2tick, MetaMessage
 from mido.midifiles.midifiles import DEFAULT_TEMPO
 
-from wfc import WaveFunctionCollapse
+from src.wfc.wfc import WaveFunctionCollapse
 
 TEMPO = DEFAULT_TEMPO
 
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     print('sample shape:', sample.shape)
 
     wfc = WaveFunctionCollapse(grid_size, sample, pattern_size)
-    wfc.run()
+    wfc.run(debug=True)
 
     notes = wfc.get_image()
 

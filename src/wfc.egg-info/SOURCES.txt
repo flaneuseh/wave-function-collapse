@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+src/wfc/cell.py
+src/wfc/grid.py
+src/wfc/main.py
+src/wfc/pattern.py
+src/wfc/propagator.py
+src/wfc/wfc.py
+src/wfc.egg-info/PKG-INFO
+src/wfc.egg-info/SOURCES.txt
+src/wfc.egg-info/dependency_links.txt
+src/wfc.egg-info/top_level.txt

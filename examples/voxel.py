@@ -9,7 +9,7 @@ from pyvox.models import Vox
 from pyvox.parser import VoxParser
 from pyvox.writer import VoxWriter
 
-from wfc import WaveFunctionCollapse
+from src.wfc.wfc import WaveFunctionCollapse
 
 
 def load_voxel_sample(path):
@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     wfc = WaveFunctionCollapse(grid_size, sample, pattern_size)
 
-    wfc.run()
+    wfc.run(debug=True)
 
     image = wfc.get_image()
 

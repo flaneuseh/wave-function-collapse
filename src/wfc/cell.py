@@ -1,6 +1,6 @@
 import numpy as np
 
-from pattern import Pattern
+from wfc.pattern import Pattern
 
 
 class Cell:

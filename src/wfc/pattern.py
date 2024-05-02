@@ -5,9 +5,34 @@ class Pattern:
     """
     Pattern is a configuration of tiles from the input image.
     """
+
+    # Class variables
     index_to_pattern = {}
     color_to_index = {}
     index_to_color = {}
+
+    # Data format. Allowable values:
+    # rbg: standard colour image
+    # char: character representation
+    format = "rbg"
+
+    # Data transforms on the grid
+    transforms = {
+        "fliplr": False,  # left-right flip
+        "flipud": False,  # up-down flip
+        "rot90": False,  # 90deg rotation
+        "rot180": False,  # 180deg rotation
+        "rot240": False,  # 240deg rotation
+    }
+
+    @staticmethod
+    def set_format(format):
+        Pattern.format = format
+
+    @staticmethod
+    def set_transforms(transforms):
+        for key, value in transforms.items():
+            Pattern.transforms[key] = value
 
     def __init__(self, data, index):
         self.index = index
@@ -33,7 +58,7 @@ class Pattern:
         :param offset:
         :return: True if compatible
         """
-        assert (self.shape == candidate_pattern.shape)
+        assert self.shape == candidate_pattern.shape
 
         # Precomputed compatibility
         if offset in self.legal_patterns_index:
@@ -42,7 +67,9 @@ class Pattern:
         # Computing compatibility
         ok_constraint = True
         start = tuple([max(offset[i], 0) for i, _ in enumerate(offset)])
-        end = tuple([min(self.shape[i] + offset[i], self.shape[i]) for i, _ in enumerate(offset)])
+        end = tuple([
+            min(self.shape[i] + offset[i], self.shape[i]) for i, _ in enumerate(offset)
+        ])
         for index in np.ndindex(end):  # index = (x, y, z...)
             start_constraint = True
             for i, d in enumerate(index):
@@ -52,7 +79,9 @@ class Pattern:
             if not start_constraint:
                 continue
 
-            if candidate_pattern.get(tuple(np.array(index) - np.array(offset))) != self.get(index):
+            if candidate_pattern.get(
+                tuple(np.array(index) - np.array(offset))
+            ) != self.get(index):
                 ok_constraint = False
                 break
 
@@ -86,21 +115,32 @@ class Pattern:
             if out:
                 continue
 
-            pattern_location = [range(d, pattern_size[i] + d) for i, d in enumerate(index)]
+            pattern_location = [
+                range(d, pattern_size[i] + d) for i, d in enumerate(index)
+            ]
             pattern_data = sample[np.ix_(*pattern_location)]
 
-            datas = [pattern_data, np.fliplr(pattern_data)]
+            if Pattern.transforms["fliplr"]:
+                datas = [pattern_data, np.fliplr(pattern_data)]
             if shape[1] > 1:  # is 2D
-                datas.append(np.flipud(pattern_data))
-                datas.append(np.rot90(pattern_data, axes=(1, 2)))
-                datas.append(np.rot90(pattern_data, 2, axes=(1, 2)))
-                datas.append(np.rot90(pattern_data, 3, axes=(1, 2)))
+                if Pattern.transforms["flipud"]:
+                    datas.append(np.flipud(pattern_data))
+                if Pattern.transforms["rot90"]:
+                    datas.append(np.rot90(pattern_data, axes=(1, 2)))
+                if Pattern.transforms["rot180"]:
+                    datas.append(np.rot90(pattern_data, 2, axes=(1, 2)))
+                if Pattern.transforms["rot240"]:
+                    datas.append(np.rot90(pattern_data, 3, axes=(1, 2)))
 
             if shape[0] > 1:  # is 3D
-                datas.append(np.flipud(pattern_data))
-                datas.append(np.rot90(pattern_data, axes=(0, 2)))
-                datas.append(np.rot90(pattern_data, 2, axes=(0, 2)))
-                datas.append(np.rot90(pattern_data, 3, axes=(0, 2)))
+                if Pattern.transforms["flipud"]:
+                    datas.append(np.flipud(pattern_data))
+                if Pattern.transforms["rot90"]:
+                    datas.append(np.rot90(pattern_data, axes=(0, 2)))
+                if Pattern.transforms["rot180"]:
+                    datas.append(np.rot90(pattern_data, 2, axes=(0, 2)))
+                if Pattern.transforms["rot240"]:
+                    datas.append(np.rot90(pattern_data, 3, axes=(0, 2)))
 
             # Checking existence
             # TODO: more probability to multiple occurrences when observe phase
@@ -141,7 +181,7 @@ class Pattern:
 
             sample_index[index] = Pattern.color_to_index[color]
 
-        print('Unique color count = ', color_number)
+        print("Unique color count = ", color_number)
         return sample_index
 
     @staticmethod

@@ -2,7 +2,7 @@ import os
 import time
 from multiprocessing import Pool
 
-from pattern import Pattern
+from wfc.pattern import Pattern
 
 
 class Propagator:
