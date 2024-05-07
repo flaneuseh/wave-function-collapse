@@ -8,10 +8,9 @@ class Cell:
     Cell is a pixel or tile (in 2d) that stores the possible patterns
     """
 
-    def __init__(self, num_pattern, position, grid):
-        self.num_pattern = num_pattern
-        self.allowed_patterns = [i for i in range(self.num_pattern)]
-
+    def __init__(self, position, top_left, grid):
+        self.allowed_patterns = Pattern.filter_on(top_left)
+        self.num_pattern = len(self.allowed_patterns)
         self.position = position
         self.grid = grid
         self.offsets = [(z, y, x) for x in range(-1, 2) for y in range(-1, 2) for z in range(-1, 2)]
@@ -26,10 +25,10 @@ class Cell:
     def is_stable(self):
         return len(self.allowed_patterns) == 1
 
-    def get_value(self):
+    def get_value(self, offset=(0, 0, 0)):
         if self.is_stable():
             pattern = Pattern.from_index(self.allowed_patterns[0])
-            return pattern.get()
+            return pattern.get(offset)
         return -1
 
     def get_neighbors(self):

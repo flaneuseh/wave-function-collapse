@@ -9,14 +9,19 @@ class Grid:
     Grid is made of Cells
     """
 
-    def __init__(self, size, num_pattern):
-        self.size = size
+    def __init__(self, initial_state, pattern_size):
+        self.pattern_size = pattern_size
+        self.size = tuple(
+            np.subtract(initial_state.shape, tuple(x - 1 for x in self.pattern_size))
+        )
         self.grid = np.empty(self.size, dtype=object)
         for position in np.ndindex(self.size):
-            self.grid[position] = Cell(num_pattern, position, self)
-
-        # self.grid = np.array([[Cell(num_pattern, (x, y), self) for x in range(self.size)] for y in range(self.size)])
-        # self.grid = np.array([Cell(num_pattern, (x,), self) for x in range(self.size)])
+            cell = Cell(
+                position,
+                Pattern.partial_at(initial_state, pattern_size, position),
+                self,
+            )
+            self.grid[position] = cell
 
     def find_lowest_entropy(self):
         min_entropy = 999999
@@ -46,12 +51,28 @@ class Grid:
         """
         return self.grid[index]
 
+    def get_grid(self):
+        return self.grid
+
     def get_image(self):
         """
         Returns the grid converted from index to back to color
         :return:
         """
-        image = np.vectorize(lambda c: c.get_value())(self.grid)
+        image = np.zeros(
+            tuple(np.add(self.grid.shape, tuple(x - 1 for x in self.pattern_size)))
+        )
+        for index in np.ndindex(image.shape):
+            grid_index = list(index)
+            offset = [0, 0, 0]
+            for i, d in enumerate(index):
+                max_d = self.grid.shape[i] - 1
+                if d > max_d:
+                    grid_index[i] = max_d
+                    offset[i] = d - max_d
+
+            cell = self.grid[tuple(grid_index)]
+            image[index] = cell.get_value(tuple(offset))
         image = Pattern.index_to_img(image)
         return image
 
@@ -62,5 +83,7 @@ class Grid:
         return False
 
     def print_allowed_pattern_count(self):
-        grid_allowed_patterns = np.vectorize(lambda c: len(c.allowed_patterns))(self.grid)
+        grid_allowed_patterns = np.vectorize(lambda c: len(c.allowed_patterns))(
+            self.grid
+        )
         print(grid_allowed_patterns)

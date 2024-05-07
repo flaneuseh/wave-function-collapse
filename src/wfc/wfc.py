@@ -1,4 +1,6 @@
 import time
+import numpy as np
+import copy
 
 from wfc.grid import Grid
 from wfc.pattern import Pattern
@@ -15,10 +17,17 @@ class WaveFunctionCollapse:
     WaveFunctionCollapse encapsulates the wfc algorithm
     """
 
+    @staticmethod
+    def unset_padding(transforms):
+        for key in transforms:
+            if key in WaveFunctionCollapse.padding:
+                del WaveFunctionCollapse.padding[key]
+
     def __init__(self, grid_size, sample, pattern_size):
+        self.pattern_size = pattern_size
         self.patterns = Pattern.from_sample(sample, pattern_size)
-        self.grid = self._create_grid(grid_size)
         self.propagator = Propagator(self.patterns)
+        self.grid = self._create_grid(grid_size)
 
     def run(self, debug=False):
         start_time = time.time()
@@ -60,5 +69,11 @@ class WaveFunctionCollapse:
         self.propagator.propagate(cell)
 
     def _create_grid(self, grid_size):
-        num_pattern = len(self.patterns)
-        return Grid(grid_size, num_pattern)
+        initial_state = Pattern.pad(np.full(grid_size, fill_value=-1, dtype=int))
+        grid = Grid(initial_state, self.pattern_size)
+        grid.print_allowed_pattern_count()
+        for idx in np.ndindex(grid.get_grid().shape):
+            cell = grid.get_cell(idx)
+            if cell.is_stable():
+                self.propagator.propagate(cell)
+        return grid

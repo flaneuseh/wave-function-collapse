@@ -1,4 +1,6 @@
 import numpy as np
+import copy
+from wfc.utils import islistlike
 
 
 class Pattern:
@@ -18,11 +20,17 @@ class Pattern:
 
     # Data transforms on the grid
     transforms = {
-        "fliplr": False,  # left-right flip
-        "flipud": False,  # up-down flip
-        "rot90": False,  # 90deg rotation
-        "rot180": False,  # 180deg rotation
-        "rot240": False,  # 240deg rotation
+        "flipx": False,  # left-right (axis 2) flip
+        "flipy": False,  # up-down (axis 1) flip
+        "fliph": False,  # height (axis 0) flip
+        "rotxy": [],  # rotate clockwise around the xy (axes 2, 1) plane by 90 degrees times numbers specified by list
+        "rotxh": [],  # rotate clockwise around the yh (axes 1, 0) plane by 90 degrees times numbers specified by list
+        "rotyh": [],  # rotate clockwise around the xh (axes 2, 0) plane by 90 degrees times numbers specified by list
+    }
+
+    padding = {
+        # "axis_order": (2, 1, 0),  # The order with which to pad the 3 axes, which numpy does not provide controls for. Defaults to the numpy default, which pads in ascending order.
+        # "constant_values": () # Constants to pad with in each of the 3 axes. Should be the same datatype as the input array, and should match the shape of the 4th axis and above.
     }
 
     @staticmethod
@@ -33,6 +41,13 @@ class Pattern:
     def set_transforms(transforms):
         for key, value in transforms.items():
             Pattern.transforms[key] = value
+
+            # Where not specified, use numpy padding settings (see https://numpy.org/doc/stable/reference/generated/numpy.pad.html)
+
+    @staticmethod
+    def set_padding(transforms):
+        for key, value in transforms.items():
+            Pattern.padding[key] = value
 
     def __init__(self, data, index):
         self.index = index
@@ -91,6 +106,36 @@ class Pattern:
         return Pattern.index_to_img(self.data)
 
     @staticmethod
+    def filter_on(partial):
+        valid_indices = []
+        for pi, pattern in Pattern.index_to_pattern.items():
+            is_valid = True
+            for i in np.ndindex(partial.shape):
+                if partial[i] != -1 and partial[i] != pattern.get(i):
+                    is_valid = False
+                    break
+            if is_valid:
+                valid_indices.append(pi)
+        return valid_indices
+
+    @staticmethod
+    def partial_at(grid, pattern_size, position):
+        shape = grid.shape
+        out = False
+        for i, d in enumerate(position):  # d is a dimension, e.g.: x, y, z
+            if d > shape[i] - pattern_size[i]:
+                out = True
+                break
+        if out:
+            return np.full(pattern_size, fill_value=-1, dtype=int)
+
+        pattern_location = [
+            range(d, pattern_size[i] + d) for i, d in enumerate(position)
+        ]
+        pattern_data = grid[np.ix_(*pattern_location)]
+        return pattern_data
+
+    @staticmethod
     def from_sample(sample, pattern_size):
         """
         Compute patterns from sample
@@ -100,6 +145,7 @@ class Pattern:
         """
 
         sample = Pattern.sample_img_to_indexes(sample)
+        sample = Pattern.pad(sample)
 
         shape = sample.shape
         patterns = []
@@ -119,28 +165,22 @@ class Pattern:
                 range(d, pattern_size[i] + d) for i, d in enumerate(index)
             ]
             pattern_data = sample[np.ix_(*pattern_location)]
-
-            if Pattern.transforms["fliplr"]:
-                datas = [pattern_data, np.fliplr(pattern_data)]
+            datas = [pattern_data]
+            if Pattern.transforms["flipx"]:
+                datas.append(np.flip(pattern_data, axis=2))
             if shape[1] > 1:  # is 2D
-                if Pattern.transforms["flipud"]:
-                    datas.append(np.flipud(pattern_data))
-                if Pattern.transforms["rot90"]:
-                    datas.append(np.rot90(pattern_data, axes=(1, 2)))
-                if Pattern.transforms["rot180"]:
-                    datas.append(np.rot90(pattern_data, 2, axes=(1, 2)))
-                if Pattern.transforms["rot240"]:
-                    datas.append(np.rot90(pattern_data, 3, axes=(1, 2)))
+                if Pattern.transforms["flipy"]:
+                    datas.append(np.flip(pattern_data, axis=1))
+                for n in Pattern.transforms["rotxy"]:
+                    datas.append(np.rot90(pattern_data, n, axes=(2, 1)))
 
             if shape[0] > 1:  # is 3D
-                if Pattern.transforms["flipud"]:
-                    datas.append(np.flipud(pattern_data))
-                if Pattern.transforms["rot90"]:
-                    datas.append(np.rot90(pattern_data, axes=(0, 2)))
-                if Pattern.transforms["rot180"]:
-                    datas.append(np.rot90(pattern_data, 2, axes=(0, 2)))
-                if Pattern.transforms["rot240"]:
-                    datas.append(np.rot90(pattern_data, 3, axes=(0, 2)))
+                if Pattern.transforms["fliph"]:
+                    datas.append(np.flip(pattern_data, axis=0))
+                for n in Pattern.transforms["rotxh"]:
+                    datas.append(np.rot90(pattern_data, n, axes=(2, 0)))
+                for n in Pattern.transforms["rotyh"]:
+                    datas.append(np.rot90(pattern_data, n, axes=(1, 0)))
 
             # Checking existence
             # TODO: more probability to multiple occurrences when observe phase
@@ -158,7 +198,6 @@ class Pattern:
                 Pattern.index_to_pattern[pattern_index] = pattern
                 pattern_index += 1
 
-        # Pattern.plot_patterns(patterns)
         return patterns
 
     @staticmethod
@@ -170,7 +209,7 @@ class Pattern:
         """
         Pattern.color_to_index = {}
         Pattern.index_to_color = {}
-        sample_index = np.zeros(sample.shape[:-1])  # without last rgb dim
+        sample_index = np.zeros(sample.shape[:-1], dtype=int)  # without last rgb dim
         color_number = 0
         for index in np.ndindex(sample.shape[:-1]):
             color = tuple(sample[index])
@@ -183,6 +222,61 @@ class Pattern:
 
         print("Unique color count = ", color_number)
         return sample_index
+
+    def pad(grid):
+        settings = Pattern.padding
+        if "pad_width" not in settings or len(settings["pad_width"]) == 0:
+            return grid
+
+        args = copy.deepcopy(settings)
+        pad_width = list(args["pad_width"])
+        while len(pad_width) < len(grid.shape):
+            pad_width.append((0, 0))
+        args["pad_width"] = tuple(pad_width)
+
+        constant_values = args["constant_values"]
+        if not islistlike(constant_values):
+            constant_values = [constant_values]
+
+        constant_vals_as_indexes = []
+        for dim_vals in constant_values:
+            if not islistlike(dim_vals):
+                dim_vals = [dim_vals]
+            dim_vals_as_indexes = []
+            for end in dim_vals:
+                if islistlike(end):
+                    end = tuple(end)
+                if end not in Pattern.color_to_index:
+                    next_idx = len(Pattern.index_to_color)
+                    Pattern.index_to_color[next_idx] = end
+                    Pattern.color_to_index[end] = next_idx
+                end = Pattern.color_to_index[end]
+                dim_vals_as_indexes.append(end)
+            if len(dim_vals_as_indexes) == 1:
+                dim_vals_as_indexes = dim_vals_as_indexes[0]
+            constant_vals_as_indexes.append(dim_vals_as_indexes)
+        if len(constant_vals_as_indexes) == 1:
+            constant_vals_as_indexes = constant_vals_as_indexes[0]
+        else:
+            while len(constant_vals_as_indexes) < len(grid.shape):
+                constant_vals_as_indexes.append(constant_vals_as_indexes[0])
+            constant_vals_as_indexes = tuple(constant_vals_as_indexes)
+
+        args["constant_values"] = constant_vals_as_indexes
+
+        if "axis_order" in args:
+            del args["axis_order"]
+        if "axis_order" not in settings or len(settings["axis_order"]) == 0:
+            return np.pad(grid, **args)
+
+        L = grid
+        for axis in settings["axis_order"]:
+            set_pad_width = np.zeros((len(L.shape), 2), dtype=int)
+            set_pad_width[axis] = settings["pad_width"][axis]
+            args["pad_width"] = tuple(set_pad_width)
+            L = np.pad(L, **args)
+
+        return L
 
     @staticmethod
     def index_to_img(sample):
