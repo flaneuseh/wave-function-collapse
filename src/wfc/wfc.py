@@ -66,14 +66,10 @@ class WaveFunctionCollapse:
         return cell
 
     def propagate(self, cell):
-        self.propagator.propagate(cell)
+        Propagator.propagate(cell)
 
     def _create_grid(self, grid_size):
         initial_state = Pattern.pad(np.full(grid_size, fill_value=-1, dtype=int))
         grid = Grid(initial_state, self.pattern_size)
         grid.print_allowed_pattern_count()
-        for idx in np.ndindex(grid.get_grid().shape):
-            cell = grid.get_cell(idx)
-            if cell.is_stable():
-                self.propagator.propagate(cell)
         return grid

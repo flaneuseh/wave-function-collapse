@@ -2,6 +2,7 @@ import numpy as np
 
 from wfc.cell import Cell
 from wfc.pattern import Pattern
+from wfc.propagator import Propagator
 
 
 class Grid:
@@ -9,6 +10,7 @@ class Grid:
     Grid is made of Cells
     """
 
+    # TODO: propagate for all cells that change.
     def __init__(self, initial_state, pattern_size):
         self.pattern_size = pattern_size
         self.size = tuple(
@@ -18,10 +20,23 @@ class Grid:
         for position in np.ndindex(self.size):
             cell = Cell(
                 position,
-                Pattern.partial_at(initial_state, pattern_size, position),
+                len(Pattern.index_to_pattern),
                 self,
             )
             self.grid[position] = cell
+
+        for position in np.ndindex(self.size):
+            cell = self.grid[position]
+            old_allowed = set(cell.allowed_patterns)
+            new_allowed = old_allowed & set(
+                Pattern.filter_on(
+                    Pattern.partial_at(initial_state, pattern_size, position)
+                )
+            )
+            if new_allowed != old_allowed:
+                cell.allowed_patterns = list(new_allowed)
+                self.grid[position] = cell
+                Propagator.propagate(cell)
 
     def find_lowest_entropy(self):
         min_entropy = 999999
