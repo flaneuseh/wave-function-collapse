@@ -35,7 +35,6 @@ class Grid:
             )
             if new_allowed != old_allowed:
                 cell.allowed_patterns = list(new_allowed)
-                self.grid[position] = cell
                 Propagator.propagate(cell)
 
     def find_lowest_entropy(self):

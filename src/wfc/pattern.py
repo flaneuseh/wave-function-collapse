@@ -10,8 +10,10 @@ class Pattern:
 
     # Class variables
     index_to_pattern = {}
-    color_to_index = {}
+    color_to_index = {(-1, -1, -1): -1, "": -1}
     index_to_color = {}
+    patterns = []
+    pattern_index = 0
 
     # Data format. Allowable values:
     # rbg: standard colour image
@@ -19,7 +21,17 @@ class Pattern:
     format = "rbg"
 
     # Data transforms on the grid
-    transforms = {
+    # local - transforms applied to each tile
+    local_transforms = {
+        "flipx": False,  # left-right (axis 2) flip
+        "flipy": False,  # up-down (axis 1) flip
+        "fliph": False,  # height (axis 0) flip
+        "rotxy": [],  # rotate clockwise around the xy (axes 2, 1) plane by 90 degrees times numbers specified by list
+        "rotxh": [],  # rotate clockwise around the yh (axes 1, 0) plane by 90 degrees times numbers specified by list
+        "rotyh": [],  # rotate clockwise around the xh (axes 2, 0) plane by 90 degrees times numbers specified by list
+    }
+    # global - transforms applied to the entire sample
+    global_transforms = {
         "flipx": False,  # left-right (axis 2) flip
         "flipy": False,  # up-down (axis 1) flip
         "fliph": False,  # height (axis 0) flip
@@ -28,6 +40,7 @@ class Pattern:
         "rotyh": [],  # rotate clockwise around the xh (axes 2, 0) plane by 90 degrees times numbers specified by list
     }
 
+    # Where not specified, use numpy padding settings (see https://numpy.org/doc/stable/reference/generated/numpy.pad.html)
     padding = {
         # "axis_order": (2, 1, 0),  # The order with which to pad the 3 axes, which numpy does not provide controls for. Defaults to the numpy default, which pads in ascending order.
         # "constant_values": () # Constants to pad with in each of the 3 axes. Should be the same datatype as the input array, and should match the shape of the 4th axis and above.
@@ -38,11 +51,14 @@ class Pattern:
         Pattern.format = format
 
     @staticmethod
-    def set_transforms(transforms):
+    def set_local_transforms(transforms):
         for key, value in transforms.items():
-            Pattern.transforms[key] = value
+            Pattern.local_transforms[key] = value
 
-            # Where not specified, use numpy padding settings (see https://numpy.org/doc/stable/reference/generated/numpy.pad.html)
+    @staticmethod
+    def set_global_transforms(transforms):
+        for key, value in transforms.items():
+            Pattern.global_transforms[key] = value
 
     @staticmethod
     def set_padding(transforms):
@@ -136,6 +152,31 @@ class Pattern:
         return pattern_data
 
     @staticmethod
+    def from_samples(samples, pattern_size):
+        for sample in samples:
+            transforms = [sample]
+            shape = sample.shape
+            if Pattern.global_transforms["flipx"]:
+                transforms.append(np.flip(sample, axis=2))
+            if shape[1] > 1:  # is 2D
+                if Pattern.global_transforms["flipy"]:
+                    transforms.append(np.flip(sample, axis=1))
+                for n in Pattern.global_transforms["rotxy"]:
+                    transforms.append(np.rot90(sample, n, axes=(2, 1)))
+
+            if shape[0] > 1:  # is 3D
+                if Pattern.global_transforms["fliph"]:
+                    transforms.append(np.flip(sample, axis=0))
+                for n in Pattern.global_transforms["rotxh"]:
+                    transforms.append(np.rot90(sample, n, axes=(2, 0)))
+                for n in Pattern.global_transforms["rotyh"]:
+                    transforms.append(np.rot90(sample, n, axes=(1, 0)))
+            
+            for transform in transforms:
+                Pattern.from_sample(transform, pattern_size)
+        return Pattern.patterns
+
+    @staticmethod
     def from_sample(sample, pattern_size):
         """
         Compute patterns from sample
@@ -144,12 +185,10 @@ class Pattern:
         :return: list of patterns
         """
 
-        sample = Pattern.sample_img_to_indexes(sample)
+        sample = Pattern.img_to_indexes(sample)
         sample = Pattern.pad(sample)
 
         shape = sample.shape
-        patterns = []
-        pattern_index = 0
 
         for index, _ in np.ndenumerate(sample):
             # Checking if index is out of bounds
@@ -166,62 +205,67 @@ class Pattern:
             ]
             pattern_data = sample[np.ix_(*pattern_location)]
             datas = [pattern_data]
-            if Pattern.transforms["flipx"]:
+            if Pattern.local_transforms["flipx"]:
                 datas.append(np.flip(pattern_data, axis=2))
             if shape[1] > 1:  # is 2D
-                if Pattern.transforms["flipy"]:
+                if Pattern.local_transforms["flipy"]:
                     datas.append(np.flip(pattern_data, axis=1))
-                for n in Pattern.transforms["rotxy"]:
+                for n in Pattern.local_transforms["rotxy"]:
                     datas.append(np.rot90(pattern_data, n, axes=(2, 1)))
 
             if shape[0] > 1:  # is 3D
-                if Pattern.transforms["fliph"]:
+                if Pattern.local_transforms["fliph"]:
                     datas.append(np.flip(pattern_data, axis=0))
-                for n in Pattern.transforms["rotxh"]:
+                for n in Pattern.local_transforms["rotxh"]:
                     datas.append(np.rot90(pattern_data, n, axes=(2, 0)))
-                for n in Pattern.transforms["rotyh"]:
+                for n in Pattern.local_transforms["rotyh"]:
                     datas.append(np.rot90(pattern_data, n, axes=(1, 0)))
 
             # Checking existence
             # TODO: more probability to multiple occurrences when observe phase
             for data in datas:
                 exist = False
-                for p in patterns:
+                for p in Pattern.patterns:
                     if (p.data == data).all():
                         exist = True
                         break
                 if exist:
                     continue
 
-                pattern = Pattern(data, pattern_index)
-                patterns.append(pattern)
-                Pattern.index_to_pattern[pattern_index] = pattern
-                pattern_index += 1
+                pattern = Pattern(data, Pattern.pattern_index)
+                Pattern.patterns.append(pattern)
+                Pattern.index_to_pattern[Pattern.pattern_index] = pattern
+                Pattern.pattern_index += 1
 
-        return patterns
+        return Pattern.patterns
 
     @staticmethod
-    def sample_img_to_indexes(sample):
+    def img_to_indexes(sample):
         """
         Convert a rgb image to a 2D array with pixel index
         :param sample:
         :return: pixel index sample
         """
-        Pattern.color_to_index = {}
-        Pattern.index_to_color = {}
-        sample_index = np.zeros(sample.shape[:-1], dtype=int)  # without last rgb dim
-        color_number = 0
-        for index in np.ndindex(sample.shape[:-1]):
-            color = tuple(sample[index])
-            if color not in Pattern.color_to_index:
-                Pattern.color_to_index[color] = color_number
-                Pattern.index_to_color[color_number] = color
-                color_number += 1
+        indexes = []
 
-            sample_index[index] = Pattern.color_to_index[color]
+        idx_shape = sample.shape
+        if Pattern.format == "rgb":
+            idx_shape = idx_shape[:-1]  # without last rgb dim
 
-        print("Unique color count = ", color_number)
-        return sample_index
+        indexes = np.full(idx_shape, fill_value=-1, dtype=int)
+        val_idx = 0
+        for index in np.ndindex(idx_shape):
+            val = sample[index]
+            if Pattern.format == "rgb":
+                val = tuple(val)
+            if val not in Pattern.color_to_index:
+                Pattern.color_to_index[val] = val_idx
+                Pattern.index_to_color[val_idx] = val
+                val_idx += 1
+
+            indexes[index] = Pattern.color_to_index[val]
+
+        return indexes
 
     def pad(grid):
         settings = Pattern.padding
@@ -282,11 +326,18 @@ class Pattern:
     def index_to_img(sample):
         color = next(iter(Pattern.index_to_color.values()))
 
-        image = np.zeros(sample.shape + (len(color),))
+        type = float
+        if Pattern.format == "char":
+            type = str
+        shape = sample.shape
+        if Pattern.format == "rbg":
+            shape += len(color)
+        image = np.zeros(shape, dtype=type)
         for index in np.ndindex(sample.shape):
             pattern_index = sample[index]
             if pattern_index == -1:
-                image[index] = [0.5 for _ in range(len(color))]  # Grey
+                if Pattern.format == "rbg":
+                    image[index] = [0.5 for _ in range(len(color))]  # Grey
             else:
                 image[index] = Pattern.index_to_color[pattern_index]
         return image

@@ -23,15 +23,23 @@ class WaveFunctionCollapse:
             if key in WaveFunctionCollapse.padding:
                 del WaveFunctionCollapse.padding[key]
 
-    def __init__(self, grid_size, sample, pattern_size):
+    @staticmethod
+    def default_initialize_fn(grid_size):
+        return np.full(grid_size, fill_value=-1, dtype=int)
+
+    def __init__(
+        self, grid_size, samples, pattern_size, initialize_fn=default_initialize_fn
+    ):
+        self.grid_size = grid_size
         self.pattern_size = pattern_size
-        self.patterns = Pattern.from_sample(sample, pattern_size)
+        self.patterns = Pattern.from_samples(samples, pattern_size)
         self.propagator = Propagator(self.patterns)
-        self.grid = self._create_grid(grid_size)
+        self.initialize_fn = initialize_fn
 
     def run(self, debug=False):
         start_time = time.time()
 
+        self.grid = self._create_grid(self.grid_size)
         done = False
         while not done:
             done = self.step(debug)
@@ -69,7 +77,8 @@ class WaveFunctionCollapse:
         Propagator.propagate(cell)
 
     def _create_grid(self, grid_size):
-        initial_state = Pattern.pad(np.full(grid_size, fill_value=-1, dtype=int))
+        initial_state = Pattern.pad(
+            Pattern.img_to_indexes(self.initialize_fn(grid_size))
+        )
         grid = Grid(initial_state, self.pattern_size)
-        grid.print_allowed_pattern_count()
         return grid
