@@ -171,7 +171,7 @@ class Pattern:
                     transforms.append(np.rot90(sample, n, axes=(2, 0)))
                 for n in Pattern.global_transforms["rotyh"]:
                     transforms.append(np.rot90(sample, n, axes=(1, 0)))
-            
+
             for transform in transforms:
                 Pattern.from_sample(transform, pattern_size)
         return Pattern.patterns
@@ -253,7 +253,7 @@ class Pattern:
             idx_shape = idx_shape[:-1]  # without last rgb dim
 
         indexes = np.full(idx_shape, fill_value=-1, dtype=int)
-        val_idx = 0
+        val_idx = len(Pattern.index_to_color)
         for index in np.ndindex(idx_shape):
             val = sample[index]
             if Pattern.format == "rgb":

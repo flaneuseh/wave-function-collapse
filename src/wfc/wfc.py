@@ -55,6 +55,9 @@ class WaveFunctionCollapse:
         self.propagate(cell)
         return False
 
+    def get_initial_image(self):
+        return self.initial_image
+
     def get_image(self):
         return self.grid.get_image()
 
@@ -77,8 +80,7 @@ class WaveFunctionCollapse:
         Propagator.propagate(cell)
 
     def _create_grid(self, grid_size):
-        initial_state = Pattern.pad(
-            Pattern.img_to_indexes(self.initialize_fn(grid_size))
-        )
+        self.initial_image = self.initialize_fn(grid_size)
+        initial_state = Pattern.pad(Pattern.img_to_indexes(self.initial_image))
         grid = Grid(initial_state, self.pattern_size)
         return grid
